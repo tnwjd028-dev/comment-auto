@@ -11,11 +11,14 @@ load_dotenv()
 # 프로젝트 루트 (이 파일의 부모의 부모)
 ROOT = Path(__file__).resolve().parent.parent
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-8")
+# Google Gemini (항목 추출)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
-CLOVA_SPEECH_INVOKE_URL = os.getenv("CLOVA_SPEECH_INVOKE_URL", "")
-CLOVA_SPEECH_SECRET = os.getenv("CLOVA_SPEECH_SECRET", "")
+# 로컬 Whisper (음성 → 텍스트)
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "medium")
+WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
+WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
 
 INPUT_DIR = (ROOT / os.getenv("INPUT_DIR", "input")).resolve()
 OUTPUT_DIR = (ROOT / os.getenv("OUTPUT_DIR", "output")).resolve()

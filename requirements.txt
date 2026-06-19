@@ -1,5 +1,5 @@
-anthropic>=0.69
-requests>=2.31
+faster-whisper>=1.0
+google-genai>=0.8
 python-docx>=1.1
 watchdog>=4.0
 python-dotenv>=1.0
