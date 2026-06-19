@@ -1,6 +1,7 @@
 """음성 파일 1건을 처리하는 전체 파이프라인."""
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -44,7 +45,14 @@ def process_file(audio_path: Path) -> Path:
 
     print("[2/3] 항목 추출 중 (Gemini)...")
     # 파일명의 첫 단어(보통 이름)를 성명 힌트로 전달
-    comment = extract(transcript, resume=resume, name_hint=first_token(audio_path.stem))
+    hint = first_token(audio_path.stem)
+    comment = extract(transcript, resume=resume, name_hint=hint)
+
+    # 파일명 첫 단어가 한글 이름 형태면, 성명을 그 값으로 확정한다.
+    # (음성 받아쓰기가 이름을 자주 틀리므로, 사용자가 지정한 파일명을 최우선으로 신뢰)
+    if re.fullmatch(r"[가-힣]{2,5}", hint) and comment.name != hint:
+        print(f"  성명 보정(파일명 기준): {comment.name or '(빈값)'} → {hint}")
+        comment.name = hint
 
     print("[3/3] 문서 생성 중...")
     name = comment.name or stem
