@@ -48,6 +48,13 @@ SYSTEM_PROMPT = """당신은 채용 담당자를 돕는 어시스턴트입니다
 - 두 자료가 충돌하면 객관적 사실은 이력서를 따르되, 통화에서 갱신·확정된 정보
   (예: 변경된 희망 연봉, 면접 가능일)는 통화를 우선합니다.
 
+성명(name) 작성 시 특히 주의:
+- 음성 받아쓰기는 한국어 사람 이름을 자주 틀리게 인식합니다 (예: '정주원'을 '정주호'로).
+- 따라서 성명은 ① 이력서 → ② 제공된 파일명 힌트 순으로 우선하고,
+  전화 전사문의 이름은 가장 신뢰도가 낮은 근거로 취급하세요.
+- 이력서나 파일명 힌트의 이름과 전사문의 이름이 다르면, 이력서/파일명을 따르세요.
+- 파일명 힌트가 사람 이름이 아니면(예: '면접녹음1') 무시하세요.
+
 작성 규칙:
 - 두 자료에 실제로 있는 내용만 사용하세요. 추측하거나 지어내지 마세요.
 - 정보가 없는 항목은 빈 문자열("") 또는 빈 목록([])으로 두세요.
@@ -59,10 +66,15 @@ SYSTEM_PROMPT = """당신은 채용 담당자를 돕는 어시스턴트입니다
 - summary와 job_seeking_status는 채용 담당자가 바로 읽을 수 있는 간결한 문장으로 정리하세요."""
 
 
-def extract(transcript: str, resume: dict | None = None) -> CandidateComment:
-    """전사문(+선택적 이력서) → 구조화된 코멘트 항목.
+def extract(
+    transcript: str,
+    resume: dict | None = None,
+    name_hint: str | None = None,
+) -> CandidateComment:
+    """전사문(+선택적 이력서, 파일명 힌트) → 구조화된 코멘트 항목.
 
-    resume: resume.load_resume() 가 돌려준 dict 또는 None.
+    resume:    resume.load_resume() 가 돌려준 dict 또는 None.
+    name_hint: 음성 파일명(성명 추정 보조용) 또는 None.
     """
     from google import genai  # 지연 임포트
     from google.genai import types
@@ -74,6 +86,12 @@ def extract(transcript: str, resume: dict | None = None) -> CandidateComment:
     contents: list = [
         "후보자의 자료를 바탕으로 '후보자 코멘트' 양식 항목을 작성해 주세요."
     ]
+
+    if name_hint:
+        contents.append(
+            f"참고용 파일명: '{name_hint}'. "
+            f"이것이 사람 이름이면 성명(name) 근거로 우선 사용하세요."
+        )
 
     if resume and resume.get("kind") == "text" and resume.get("text", "").strip():
         contents.append(
