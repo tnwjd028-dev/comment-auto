@@ -26,6 +26,9 @@ OUTPUT_DIR = (ROOT / os.getenv("OUTPUT_DIR", "output")).resolve()
 # 처리 대상 오디오 확장자
 AUDIO_EXTS = {".m4a", ".mp3", ".wav", ".flac", ".aac", ".ogg", ".mp4"}
 
+# 함께 참고할 이력서 확장자 (PDF/이미지는 Gemini가 직접 읽고, docx/txt는 텍스트로 읽음)
+RESUME_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".docx", ".txt"}
+
 
 def require(name: str, value: str) -> str:
     """필수 환경변수가 비어 있으면 친절한 에러를 낸다."""

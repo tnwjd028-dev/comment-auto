@@ -37,33 +37,61 @@ class CandidateComment(BaseModel):
 
 
 SYSTEM_PROMPT = """당신은 채용 담당자를 돕는 어시스턴트입니다.
-후보자와의 전화 면접 녹음 전사문을 읽고, '후보자 코멘트' 양식 항목을 정확히 추출합니다.
+후보자의 '이력서'(있을 경우)와 '전화 면접 녹음 전사문'을 함께 읽고,
+'후보자 코멘트' 양식 항목을 정확히 작성합니다.
 
-규칙:
-- 전사문에 실제로 언급된 내용만 사용하세요. 추측하거나 지어내지 마세요.
+자료 활용 원칙:
+- 이력서가 함께 제공되면: 객관적 사실(성명, 기술스택, 회사명, 재직기간, 총 경력,
+  연봉, 직무 등)은 이력서를 우선 근거로 삼으세요.
+- 전화 전사문: 후보자의 이직 사유, 구직 상황, 입사 가능 시기, 희망 직무·연봉 등
+  '의향과 상황'을 보완하는 데 사용하세요.
+- 두 자료가 충돌하면 객관적 사실은 이력서를 따르되, 통화에서 갱신·확정된 정보
+  (예: 변경된 희망 연봉, 면접 가능일)는 통화를 우선합니다.
+
+작성 규칙:
+- 두 자료에 실제로 있는 내용만 사용하세요. 추측하거나 지어내지 마세요.
 - 정보가 없는 항목은 빈 문자열("") 또는 빈 목록([])으로 두세요.
-- 연봉/기간/숫자는 전사문에 나온 그대로 표기하되, 자연스러운 한국어 단위로 정리하세요
-  (예: "사천오백" → "4,500만원").
+- 연봉/숫자는 자연스러운 한국어 단위로 정리하세요 (예: "사천오백" → "4,500만원").
+- 기간(period)은 깔끔한 형태로 정리하세요 (예: "4년 좀 안 됨" → "약 4년",
+  "1년2개월" → "1년 2개월").
+- career(총 경력)는 이력서/통화에 명시가 있으면 그대로, 없으면 회사별 재직기간을
+  합산해 "약 N년 M개월" 형태로 채우세요.
 - summary와 job_seeking_status는 채용 담당자가 바로 읽을 수 있는 간결한 문장으로 정리하세요."""
 
 
-def extract(transcript: str) -> CandidateComment:
-    """전사문 → 구조화된 코멘트 항목."""
+def extract(transcript: str, resume: dict | None = None) -> CandidateComment:
+    """전사문(+선택적 이력서) → 구조화된 코멘트 항목.
+
+    resume: resume.load_resume() 가 돌려준 dict 또는 None.
+    """
     from google import genai  # 지연 임포트
+    from google.genai import types
 
     config.require("GEMINI_API_KEY", config.GEMINI_API_KEY)
     client = genai.Client(api_key=config.GEMINI_API_KEY)
 
-    user_text = (
-        "다음은 후보자 전화 면접 녹음의 전사문입니다. 양식 항목을 추출해 주세요.\n\n"
-        "=== 전사문 시작 ===\n"
-        f"{transcript}\n"
-        "=== 전사문 끝 ==="
+    # Gemini 입력(contents) 조립: 안내 → (이력서) → 전사문
+    contents: list = [
+        "후보자의 자료를 바탕으로 '후보자 코멘트' 양식 항목을 작성해 주세요."
+    ]
+
+    if resume and resume.get("kind") == "text" and resume.get("text", "").strip():
+        contents.append(
+            "=== 이력서(텍스트) 시작 ===\n" + resume["text"] + "\n=== 이력서 끝 ==="
+        )
+    elif resume and resume.get("kind") == "file":
+        contents.append("아래 첨부된 이력서 파일을 먼저 참고하세요.")
+        contents.append(
+            types.Part.from_bytes(data=resume["data"], mime_type=resume["mime"])
+        )
+
+    contents.append(
+        "=== 전화 면접 전사문 시작 ===\n" + transcript + "\n=== 전사문 끝 ==="
     )
 
     response = client.models.generate_content(
         model=config.GEMINI_MODEL,
-        contents=user_text,
+        contents=contents,
         config={
             "system_instruction": SYSTEM_PROMPT,
             "response_mime_type": "application/json",

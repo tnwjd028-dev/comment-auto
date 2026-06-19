@@ -7,6 +7,7 @@ from pathlib import Path
 from . import config
 from .extract import extract
 from .render import render
+from .resume import find_resume, load_resume
 from .stt import transcribe
 
 
@@ -25,8 +26,24 @@ def process_file(audio_path: Path) -> Path:
         transcript, encoding="utf-8"
     )
 
-    print("[2/3] 항목 추출 중 (Claude)...")
-    comment = extract(transcript)
+    # 같은 이름의 이력서가 있으면 함께 사용
+    resume = None
+    resume_path = find_resume(audio_path)
+    if resume_path:
+        loaded = load_resume(resume_path)
+        if loaded.get("kind") == "unsupported":
+            print(
+                f"  이력서 {resume_path.name} 형식({loaded['ext']})은 지원하지 않아 "
+                f"전화 내용만 사용합니다. (PDF로 변환 권장)"
+            )
+        else:
+            resume = loaded
+            print(f"  이력서 함께 사용: {resume_path.name}")
+    else:
+        print("  (짝이 되는 이력서 없음 — 전화 내용만 사용)")
+
+    print("[2/3] 항목 추출 중 (Gemini)...")
+    comment = extract(transcript, resume=resume)
 
     print("[3/3] 문서 생성 중...")
     name = comment.name or stem
