@@ -77,6 +77,7 @@ def extract(
     name_hint: 음성 파일명(성명 추정 보조용) 또는 None.
     """
     from google import genai  # 지연 임포트
+    from google.genai import errors as genai_errors
     from google.genai import types
 
     config.require("GEMINI_API_KEY", config.GEMINI_API_KEY)
@@ -107,15 +108,36 @@ def extract(
         "=== 전화 면접 전사문 시작 ===\n" + transcript + "\n=== 전사문 끝 ==="
     )
 
-    response = client.models.generate_content(
-        model=config.GEMINI_MODEL,
-        contents=contents,
-        config={
-            "system_instruction": SYSTEM_PROMPT,
-            "response_mime_type": "application/json",
-            "response_schema": CandidateComment,
-        },
-    )
+    # 서버 혼잡(503)·요청 과다(429) 등 일시적 오류는 잠시 대기 후 재시도한다.
+    import time
+
+    response = None
+    last_err: Exception | None = None
+    for attempt in range(5):
+        try:
+            response = client.models.generate_content(
+                model=config.GEMINI_MODEL,
+                contents=contents,
+                config={
+                    "system_instruction": SYSTEM_PROMPT,
+                    "response_mime_type": "application/json",
+                    "response_schema": CandidateComment,
+                },
+            )
+            break
+        except genai_errors.APIError as e:
+            code = getattr(e, "code", None)
+            if code in (429, 500, 502, 503, 504) and attempt < 4:
+                wait = 5 * (attempt + 1)  # 5, 10, 15, 20초
+                print(f"  서버 혼잡(코드 {code}) — {wait}초 후 재시도 ({attempt + 1}/5)...")
+                time.sleep(wait)
+                last_err = e
+                continue
+            raise
+    if response is None:
+        raise RuntimeError(
+            "Gemini 서버가 계속 혼잡합니다. 잠시 후(몇 분 뒤) 다시 실행해 주세요."
+        ) from last_err
 
     # google-genai는 response_schema가 pydantic이면 .parsed에 인스턴스를 채워준다.
     parsed = getattr(response, "parsed", None)
