@@ -7,7 +7,7 @@ from pathlib import Path
 from . import config
 from .extract import extract
 from .render import render
-from .resume import find_resume, load_resume
+from .resume import find_resume, first_token, load_resume
 from .stt import transcribe
 
 
@@ -43,7 +43,8 @@ def process_file(audio_path: Path) -> Path:
         print("  (짝이 되는 이력서 없음 — 전화 내용만 사용)")
 
     print("[2/3] 항목 추출 중 (Gemini)...")
-    comment = extract(transcript, resume=resume, name_hint=audio_path.stem)
+    # 파일명의 첫 단어(보통 이름)를 성명 힌트로 전달
+    comment = extract(transcript, resume=resume, name_hint=first_token(audio_path.stem))
 
     print("[3/3] 문서 생성 중...")
     name = comment.name or stem

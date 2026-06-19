@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from . import config
@@ -23,23 +24,49 @@ _IMAGE_MIME = {
 }
 
 
+def first_token(name: str) -> str:
+    """파일 이름에서 첫 단어(보통 사람 이름)를 뽑는다. 예: '정주원 이력서' → '정주원'."""
+    parts = re.split(r"[\s_]+", name.strip())
+    return parts[0] if parts and parts[0] else name.strip()
+
+
 def find_resume(audio_path: Path) -> Path | None:
-    """음성 파일과 짝이 되는 이력서 파일 경로를 찾는다. 없으면 None."""
+    """음성 파일과 짝이 되는 이력서 파일 경로를 찾는다. 없으면 None.
+
+    매칭 우선순위:
+      1) 같은 이름, 확장자만 다름        (정주원.m4a ↔ 정주원.pdf)
+      2) 한쪽 이름이 다른 쪽으로 시작     (정주원.m4a ↔ 정주원_이력서.pdf)
+      3) 첫 단어(이름)가 같음            (정주원 통화녹음.m4a ↔ 정주원 이력서.pdf)
+    """
     # 1) 같은 이름, 확장자만 다른 경우
     for ext in config.RESUME_EXTS:
         cand = audio_path.with_suffix(ext)
         if cand.exists():
             return cand
-    # 2) 같은 이름으로 시작하는 파일 (예: 정주호_이력서.pdf)
-    stem = audio_path.stem
+
     try:
-        for p in sorted(audio_path.parent.iterdir()):
-            if p == audio_path:
-                continue
-            if p.suffix.lower() in config.RESUME_EXTS and p.stem.startswith(stem):
-                return p
+        candidates = [
+            p
+            for p in sorted(audio_path.parent.iterdir())
+            if p != audio_path and p.suffix.lower() in config.RESUME_EXTS
+        ]
     except FileNotFoundError:
-        pass
+        return None
+
+    a_stem = audio_path.stem
+
+    # 2) 한쪽 이름이 다른 쪽 이름으로 시작
+    for p in candidates:
+        if p.stem.startswith(a_stem) or a_stem.startswith(p.stem):
+            return p
+
+    # 3) 첫 단어(이름)가 같음
+    a_tok = first_token(a_stem)
+    if a_tok:
+        for p in candidates:
+            if first_token(p.stem) == a_tok:
+                return p
+
     return None
 
 
