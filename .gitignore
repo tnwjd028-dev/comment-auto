@@ -1,0 +1,14 @@
+# 비밀키
+.env
+
+# 입출력 파일 (음성/결과물은 저장소에 올리지 않음)
+input/*
+output/*
+!input/.gitkeep
+!output/.gitkeep
+
+# 파이썬
+__pycache__/
+*.pyc
+.venv/
+venv/
